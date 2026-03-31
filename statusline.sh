@@ -6,54 +6,89 @@ input=$(cat)
 # Write full JSON to cache file for the menu bar app
 echo "$input" > /tmp/claude_statusline_data.json
 
+# Colors
+DIM_GRAY='\033[2;37m'
+DIM_BLUE='\033[2;36m'
+DIM_GREEN='\033[2;32m'
+YELLOW='\033[33m'
+RED='\033[31m'
+NC='\033[0m'
+
+# Pick traffic light color based on usage percentage (dimmed green, full yellow, full red)
+traffic_color() {
+  local pct=$1
+  if [ "$pct" -ge 80 ]; then
+    echo "$RED"
+  elif [ "$pct" -ge 50 ]; then
+    echo "$YELLOW"
+  else
+    echo "$DIM_GREEN"
+  fi
+}
+
+# Format seconds left as "Xh Xm left" or "Xd Xh left"
+fmt_left() {
+  local secs=$1
+  local days hrs mins
+  if [ "$secs" -le 0 ]; then
+    echo "resetting…"
+    return
+  fi
+  days=$(( secs / 86400 ))
+  hrs=$(( (secs % 86400) / 3600 ))
+  mins=$(( (secs % 3600) / 60 ))
+  if [ "$days" -gt 0 ]; then
+    echo "${days}d${hrs}h left"
+  elif [ "$hrs" -gt 0 ]; then
+    echo "${hrs}h${mins}m left"
+  else
+    echo "${mins}m left"
+  fi
+}
+
 # Output a compact status line for the terminal
 MODEL=$(echo "$input" | jq -r '.model.display_name // "?"')
 FIVE_H=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-WEEK=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
-
+WEEK=$(echo "$input"  | jq -r '.rate_limits.seven_day.used_percentage // empty')
 FIVE_H_RESET=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
-WEEK_RESET=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+WEEK_RESET=$(echo "$input"   | jq -r '.rate_limits.seven_day.resets_at // empty')
+CTX=$(echo "$input"   | jq -r '.context_window.used_percentage // empty')
 
-RESET_STR=""
-if [ -n "$FIVE_H_RESET" ]; then
-  NOW=$(date +%s)
-  SECS_LEFT=$(( FIVE_H_RESET - NOW ))
-  if [ "$SECS_LEFT" -le 0 ]; then
-    RESET_STR="resetting…"
-  else
-    HRS=$(( SECS_LEFT / 3600 ))
-    MINS=$(( (SECS_LEFT % 3600) / 60 ))
-    if [ "$HRS" -gt 0 ]; then
-      RESET_STR="resets ${HRS}h ${MINS}m"
-    else
-      RESET_STR="resets ${MINS}m"
-    fi
-  fi
-fi
-
+NOW=$(date +%s)
 LIMITS=""
-[ -n "$FIVE_H" ] && LIMITS="5h: $(printf '%.0f' "$FIVE_H")%"
-[ -n "$RESET_STR" ] && LIMITS="${LIMITS:+$LIMITS }($RESET_STR)"
-WEEK_RESET_STR=""
-if [ -n "$WEEK_RESET" ]; then
-  NOW=$(date +%s)
-  SECS_LEFT=$(( WEEK_RESET - NOW ))
-  if [ "$SECS_LEFT" -le 0 ]; then
-    WEEK_RESET_STR="resetting…"
-  else
-    DAYS=$(( SECS_LEFT / 86400 ))
-    HRS=$(( (SECS_LEFT % 86400) / 3600 ))
-    if [ "$DAYS" -gt 0 ]; then
-      WEEK_RESET_STR="resets ${DAYS}d ${HRS}h"
-    else
-      MINS=$(( (SECS_LEFT % 3600) / 60 ))
-      WEEK_RESET_STR="resets ${HRS}h ${MINS}m"
-    fi
+
+# 5h block
+if [ -n "$FIVE_H" ]; then
+  PCT5=$(printf '%.0f' "$FIVE_H")
+  COLOR5=$(traffic_color "$PCT5")
+  LIMITS="${COLOR5}5h: ${PCT5}%${NC}"
+  if [ -n "$FIVE_H_RESET" ]; then
+    SECS=$(( FIVE_H_RESET - NOW ))
+    LIMITS="${LIMITS} ${DIM_GRAY}($(fmt_left "$SECS"))${NC}"
   fi
 fi
 
-[ -n "$WEEK" ] && LIMITS="${LIMITS:+$LIMITS  }7d: $(printf '%.0f' "$WEEK")%"
-[ -n "$WEEK_RESET_STR" ] && LIMITS="${LIMITS:+$LIMITS }($WEEK_RESET_STR)"
+# 7d block
+if [ -n "$WEEK" ]; then
+  PCT7=$(printf '%.0f' "$WEEK")
+  COLOR7=$(traffic_color "$PCT7")
+  LIMITS="${LIMITS:+$LIMITS ${DIM_GRAY}·${NC} }${COLOR7}7d: ${PCT7}%${NC}"
+  if [ -n "$WEEK_RESET" ]; then
+    SECS=$(( WEEK_RESET - NOW ))
+    LIMITS="${LIMITS} ${DIM_GRAY}($(fmt_left "$SECS"))${NC}"
+  fi
+fi
+
+# context window block
+if [ -n "$CTX" ]; then
+  PCTC=$(printf '%.0f' "$CTX")
+  COLORC=$(traffic_color "$PCTC")
+  LIMITS="${LIMITS:+$LIMITS ${DIM_GRAY}·${NC} }${COLORC}ctx: ${PCTC}%${NC}"
+fi
 
 TS=$(date +"%H:%M:%S")
-[ -n "$LIMITS" ] && echo "$TS [$MODEL] $LIMITS" || echo "$TS [$MODEL]"
+if [ -n "$LIMITS" ]; then
+  echo -e "${DIM_GRAY}${TS} [${MODEL}]${NC}   ${LIMITS}"
+else
+  echo -e "${DIM_GRAY}${TS} [${MODEL}]${NC}"
+fi
