@@ -11,6 +11,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 try:
     import rumps
@@ -50,7 +51,7 @@ def short_bar(pct: float, width: int = 10) -> str:
 
 # ── Read status line data ─────────────────────────────────────────────────────
 
-def read_statusline_data() -> dict | None:
+def read_statusline_data() -> Optional[dict]:
     """Read the JSON written by ~/.claude/statusline.sh."""
     try:
         if STATUSLINE_CACHE.exists():
@@ -159,8 +160,9 @@ class ClaudeUsageApp(rumps.App):
         reset_5h = five_h.get("resets_at")
 
         if pct_5h is not None:
-            bar_5h = progress_bar(pct_5h)
-            self.mi_5h_bar.title = f"   5h: {bar_5h}  {pct_5h:.0f}%"
+            left_5h = 100 - pct_5h
+            bar_5h = progress_bar(left_5h)
+            self.mi_5h_bar.title = f"   5h: {bar_5h}  {left_5h:.0f}% left"
 
             if reset_5h:
                 reset_dt = datetime.fromtimestamp(reset_5h, tz=timezone.utc)
@@ -171,8 +173,8 @@ class ClaudeUsageApp(rumps.App):
             else:
                 self.mi_5h_reset.title = "   Resets in: —"
 
-            # Status bar: show 5h usage prominently
-            self.title = f"⚡ {short_bar(pct_5h)} {pct_5h:.0f}%  ⏱ {time_str if reset_5h else '—'}"
+            # Status bar: show 5h left prominently
+            self.title = f"⚡ {short_bar(left_5h)} {left_5h:.0f}% left  ⏱ {time_str if reset_5h else '—'}"
         else:
             self.mi_5h_bar.title   = "   5h: no data yet"
             self.mi_5h_reset.title = ""
@@ -184,8 +186,9 @@ class ClaudeUsageApp(rumps.App):
         reset_7d = seven_d.get("resets_at")
 
         if pct_7d is not None:
-            bar_7d = progress_bar(pct_7d)
-            self.mi_7d_bar.title = f"   7d: {bar_7d}  {pct_7d:.0f}%"
+            left_7d = 100 - pct_7d
+            bar_7d = progress_bar(left_7d)
+            self.mi_7d_bar.title = f"   7d: {bar_7d}  {left_7d:.0f}% left"
 
             if reset_7d:
                 reset_dt = datetime.fromtimestamp(reset_7d, tz=timezone.utc)
