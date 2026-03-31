@@ -35,7 +35,22 @@ git clone https://github.com/felipemalbergier/Claude-Usage-Status-Bar.git
 cd Claude-Usage-Status-Bar
 ```
 
-### 1. Set up the Claude Code status line
+### Option A — Ask Claude to install it for you
+
+Open Claude Code and paste this prompt:
+
+```
+Please install the status line script from this repo:
+copy statusline.sh to ~/.claude/statusline.sh, make it executable,
+and add "statusCommand": "~/.claude/statusline.sh" to ~/.claude/settings.json.
+Then restart Claude Code.
+```
+
+Claude will handle the file copy, permissions, and settings update automatically.
+
+### Option B — Manual setup
+
+#### 1. Set up the Claude Code status line
 
 Copy `statusline.sh` to your Claude config directory and make it executable:
 
@@ -58,7 +73,7 @@ Restart Claude Code. You should see a line like this in your Claude terminal win
 11:49:13 [Sonnet 4.6] 5h: 13% (resets 4h 10m)  7d: 62% (resets 1d 1h)
 ```
 
-### 2. Launch the menu bar app
+#### 2. Launch the menu bar app
 
 ```bash
 ./launch.sh
